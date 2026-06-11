@@ -1,5 +1,5 @@
 # di
-[**中文**](README_zh.md) | [**English**](README.md)
+[中文](README_zh.md) | **English**
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/shanjunmei/di.svg)](https://pkg.go.dev/github.com/shanjunmei/di)
 [![Go Report Card](https://goreportcard.com/badge/github.com/shanjunmei/di)](https://goreportcard.com/report/github.com/shanjunmei/di)
