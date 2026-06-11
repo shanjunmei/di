@@ -1,7 +1,7 @@
 # di
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/yourname/di.svg)](https://pkg.go.dev/github.com/yourname/di)
-[![Go Report Card](https://goreportcard.com/badge/github.com/yourname/di)](https://goreportcard.com/report/github.com/yourname/di)
+[![Go Reference](https://pkg.go.dev/badge/github.com/shanjunmei/di.svg)](https://pkg.go.dev/github.com/shanjunmei/di)
+[![Go Report Card](https://goreportcard.com/badge/github.com/shanjunmei/di)](https://goreportcard.com/report/github.com/shanjunmei/di)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **di** 是一个极简的 Go 依赖注入容器。  
@@ -19,7 +19,7 @@
 
 ## 安装
 
-    go get github.com/yourname/di
+    go get github.com/shanjunmei/di
 
 要求 Go 1.22+（如需支持低版本，请将 `for i := range n` 改为传统 `for i := 0; i < n; i++`）。
 
@@ -32,7 +32,7 @@
         "fmt"
         "log"
 
-        "github.com/yourname/di"
+        "github.com/shanjunmei/di"
     )
 
     type Config struct {
