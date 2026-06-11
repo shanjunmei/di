@@ -8,17 +8,27 @@ type Option interface {
 	apply(*container)
 }
 
-type provideOption struct{ constructor any }
+type provideOption struct{ constructors []any }
 
-func (o provideOption) apply(c *container) { c.Provide(o.constructor) }
+func (o provideOption) apply(c *container) {
+	for _, ctor := range o.constructors {
+		c.Provide(ctor)
+	}
 
-func Provide(constructor any) Option { return provideOption{constructor: constructor} }
+}
 
-type invokeOption struct{ fn any }
+func Provide(constructors ...any) Option { return provideOption{constructors: constructors} }
 
-func (o invokeOption) apply(c *container) { c.Invoke(o.fn) }
+type invokeOption struct{ fns []any }
 
-func Invoke(fn any) Option { return invokeOption{fn: fn} }
+func (o invokeOption) apply(c *container) {
+	for _, fn := range o.fns {
+		c.Invoke(fn)
+	}
+
+}
+
+func Invoke(fns ...any) Option { return invokeOption{fns: fns} }
 
 type moduleOption struct{ opts []Option }
 

@@ -160,9 +160,20 @@ func typeFullName(t reflect.Type) string {
 	if t == nil {
 		return "<nil>"
 	}
-	// 内置类型（如 string、int）无包路径，直接输出类型名
-	if t.PkgPath() == "" {
-		return t.Name()
+
+	raw := t.String()
+
+	elemT := t
+	for elemT.Kind() == reflect.Pointer {
+		elemT = elemT.Elem()
 	}
-	return t.PkgPath() + "." + t.Name()
+
+	if elemT.PkgPath() == "" {
+		return raw
+	}
+
+	full := elemT.PkgPath() + "." + elemT.Name()
+
+	idx := len(raw) - len(elemT.Name())
+	return raw[:idx] + full
 }
