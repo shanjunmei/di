@@ -1,5 +1,5 @@
 # di
-
+[![中文](https://img.shields.io/badge/中文-README_zh.md-red)](README_zh.md) | [![English](https://img.shields.io/badge/English-README.md-blue)](README.md)
 [![Go Reference](https://pkg.go.dev/badge/github.com/shanjunmei/di.svg)](https://pkg.go.dev/github.com/shanjunmei/di)
 [![Go Report Card](https://goreportcard.com/badge/github.com/shanjunmei/di)](https://goreportcard.com/report/github.com/shanjunmei/di)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
