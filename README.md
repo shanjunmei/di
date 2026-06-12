@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **di** is a minimalistic dependency injection container for Go.  
-It has **no code generation**, **no external dependencies** (only the standard library), and provides a simple API: `Provide`, `Invoke`, and `Module`.  
+It has **no code generation**, **no external dependencies** (only the standard library), and provides a simple API: `Provide`, `Invoke`, `Module`, and `Supply`.  
 It follows the philosophy: *keep it simple, stay idiomatic*.
 
 ## Features
@@ -15,6 +15,7 @@ It follows the philosophy: *keep it simple, stay idiomatic*.
 - ✅ **Singleton by default** – each constructor is called once, result is cached.
 - ✅ **Error support** – constructors may return `(T, error)`; `Invoke` functions may return `error`.
 - ✅ **Modular** – combine multiple `Provide`/`Invoke` with `Module`.
+- ✅ **Supply existing instances** – directly inject pre‑created objects without a constructor.
 - ✅ **Zero dependencies** – only Go standard library.
 - ✅ **Tiny binary overhead** – only a few tens of KB.
 
@@ -70,6 +71,25 @@ Requires Go 1.22+ (for `range over int`; if you need older Go, replace `for i :=
             log.Fatal(err)
         }
     }
+
+## Supply Existing Instances
+
+Sometimes you already have an object (e.g., a database connection or a configuration struct) and you want the container to use it as a singleton. Use `Supply`:
+
+    db, _ := gorm.Open(...)
+
+    app := di.New(
+        di.Supply(db),               // inject existing *gorm.DB
+        di.Provide(NewUserService), // NewUserService receives *gorm.DB
+    )
+
+You can supply multiple values at once:
+
+    di.Supply(db, cfg, logger)
+
+`Supply` works for any concrete type. If you need to bind an instance to an interface, just write a small adapter:
+
+    di.Provide(func() io.Closer { return db })
 
 ## Module Composition
 

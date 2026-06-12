@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **di** 是一个极简的 Go 依赖注入容器。  
-**无代码生成**、**零外部依赖**（仅标准库），API 极其简单：`Provide`、`Invoke`、`Module`。  
+**无代码生成**、**零外部依赖**（仅标准库），API 极其简单：`Provide`、`Invoke`、`Module` 以及 `Supply`。  
 设计哲学：**保持简单，忠于 Go 惯用法**。
 
 ## 特性
@@ -15,6 +15,7 @@
 - ✅ **单例模式** – 每个构造函数只调用一次，结果被缓存。
 - ✅ **支持错误返回** – 构造函数可返回 `(T, error)`，`Invoke` 函数也可返回 `error`。
 - ✅ **模块化** – 通过 `Module` 组合多个 `Provide` / `Invoke`。
+- ✅ **直接注入已有实例** – 使用 `Supply` 将已创建的对象交给容器。
 - ✅ **零外部依赖** – 仅依赖 Go 标准库。
 - ✅ **二进制体积极小** – 仅几十 KB。
 
@@ -70,6 +71,25 @@
             log.Fatal(err)
         }
     }
+
+## 注入已有实例（Supply）
+
+有时你已经创建好了一个对象（例如数据库连接或配置结构体），希望容器将它作为单例使用。这时可以用 `Supply`：
+
+    db, _ := gorm.Open(...)
+
+    app := di.New(
+        di.Supply(db),               // 注入已有的 *gorm.DB
+        di.Provide(NewUserService), // NewUserService 会接收到 *gorm.DB
+    )
+
+可以一次性注入多个值：
+
+    di.Supply(db, cfg, logger)
+
+`Supply` 适用于任意具体类型。如果需要将实例绑定到接口，可以写一个简单的适配器：
+
+    di.Provide(func() io.Closer { return db })
 
 ## 模块组合
 

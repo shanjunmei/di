@@ -37,6 +37,22 @@ func (o moduleOption) apply(c *container) {
 		opt.apply(c)
 	}
 }
+
+type supplyOption struct{ value any }
+
+func (o supplyOption) apply(c *container) {
+	c.Supply(o)
+}
+func Supply(values ...any) Option {
+	if len(values) == 0 {
+		return Module()
+	}
+	opts := make([]Option, len(values))
+	for i, v := range values {
+		opts[i] = supplyOption{value: v}
+	}
+	return Module(opts...)
+}
 func Module(opts ...Option) Option { return moduleOption{opts: opts} }
 
 type App struct {

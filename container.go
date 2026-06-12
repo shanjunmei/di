@@ -24,6 +24,21 @@ func newContainer() *container {
 	}
 }
 
+// Supply 直接注册一个已存在的实例（单例）
+// 按实例的实际类型存入容器，优先级高于构造函数（Provid e）
+func (c *container) Supply(value any) {
+	t := reflect.TypeOf(value)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if _, ok := c.instances[t]; ok {
+		panicf("di: instance already supplied for type %v", typeFullName(t))
+	}
+	if _, ok := c.providers[t]; ok {
+		panicf("di: provider already exists for type %v, cannot supply", typeFullName(t))
+	}
+	c.instances[t] = reflect.ValueOf(value)
+}
+
 // Provide 注册构造函数，支持 func() T 或 func() (T, error)
 func (c *container) Provide(constructor any) {
 	ctorType := reflect.TypeOf(constructor)
