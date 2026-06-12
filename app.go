@@ -41,7 +41,7 @@ func (o moduleOption) apply(c *container) {
 type supplyOption struct{ value any }
 
 func (o supplyOption) apply(c *container) {
-	c.Supply(o)
+	c.Supply(o.value)
 }
 func Supply(values ...any) Option {
 	if len(values) == 0 {
