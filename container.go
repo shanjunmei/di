@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"runtime"
 	"runtime/debug"
+	"strings"
 	"sync"
 )
 
@@ -25,7 +26,6 @@ func newContainer() *container {
 }
 
 // Supply 直接注册一个已存在的实例（单例）
-// 按实例的实际类型存入容器，优先级高于构造函数（Provid e）
 func (c *container) Supply(value any) {
 	t := reflect.TypeOf(value)
 	c.mu.Lock()
@@ -76,7 +76,7 @@ func (c *container) Invoke(fn any) {
 		args := make([]reflect.Value, numIn)
 		for i := range numIn {
 			argType := fnType.In(i)
-			argVal, err := c.resolve(argType, map[reflect.Type]bool{})
+			argVal, err := c.resolve(argType, map[reflect.Type]bool{}, nil)
 			if err != nil {
 				return errorf("di: cannot resolve argument %d (%v): %w", i, typeFullName(argType), err)
 			}
@@ -97,14 +97,33 @@ func (c *container) Invoke(fn any) {
 	c.pending = append(c.pending, wrapper)
 }
 
+// getFuncName 从 reflect.Value 获取函数名（辅助函数）
+func getFuncName(fn reflect.Value) string {
+	if fn.Kind() != reflect.Func {
+		return "<not a function>"
+	}
+	pc := fn.Pointer()
+	if pc == 0 {
+		return "<nil function>"
+	}
+	fnPtr := runtime.FuncForPC(pc)
+	if fnPtr == nil {
+		return "<unknown>"
+	}
+	return fnPtr.Name()
+}
+
 // resolve 递归解析类型，支持 (T, error) 构造函数
-func (c *container) resolve(t reflect.Type, visiting map[reflect.Type]bool) (reflect.Value, error) {
+func (c *container) resolve(t reflect.Type, visiting map[reflect.Type]bool, path []reflect.Type) (reflect.Value, error) {
 	if visiting[t] {
 		return reflect.Value{}, errorf("di: circular dependency on %v", typeFullName(t))
 	}
 	visiting[t] = true
 	defer delete(visiting, t)
 
+	currentPath := append(path, t)
+
+	// 优先返回已缓存的实例
 	c.mu.RLock()
 	inst, ok := c.instances[t]
 	c.mu.RUnlock()
@@ -112,21 +131,29 @@ func (c *container) resolve(t reflect.Type, visiting map[reflect.Type]bool) (ref
 		return inst, nil
 	}
 
+	// 查找构造函数
 	c.mu.RLock()
 	ctor, ok := c.providers[t]
 	c.mu.RUnlock()
 	if !ok {
-		return reflect.Value{}, errorf("di: no provider for type %v", typeFullName(t))
+		pathStr := buildPathString(currentPath)
+		return reflect.Value{}, errorf("di: no provider for type %v\n\trequired by: %s", typeFullName(t), pathStr)
 	}
 
 	ctorType := ctor.Type()
 	numIn := ctorType.NumIn()
 	args := make([]reflect.Value, numIn)
+
+	// 获取构造函数名称用于错误信息（关键修改1）
+	ctorName := getFuncName(ctor)
+
 	for i := range numIn {
 		argType := ctorType.In(i)
-		argVal, err := c.resolve(argType, visiting)
+		argVal, err := c.resolve(argType, visiting, currentPath)
 		if err != nil {
-			return reflect.Value{}, err
+			// 关键修改2：在错误中附上构造函数名称和参数索引
+			return reflect.Value{}, errorf("di: in constructor %s: cannot resolve argument %d (%v): %w",
+				ctorName, i, typeFullName(argType), err)
 		}
 		args[i] = argVal
 	}
@@ -138,12 +165,8 @@ func (c *container) resolve(t reflect.Type, visiting map[reflect.Type]bool) (ref
 		val = results[0]
 	} else if len(results) == 2 {
 		val = results[0]
-		if e := results[1]; !e.IsNil() {
-			if e.Type().Implements(reflect.TypeFor[error]()) {
-				err = e.Interface().(error)
-			} else {
-				err = errorf("di: second return value is not error")
-			}
+		if e := results[1]; !e.IsNil() && e.Type().Implements(reflect.TypeFor[error]()) {
+			err = e.Interface().(error)
 		}
 	} else {
 		return reflect.Value{}, errorf("di: constructor returned %d values, expected 1 or 2", len(results))
@@ -177,20 +200,15 @@ func typeFullName(t reflect.Type) string {
 	if t == nil {
 		return "<nil>"
 	}
-
 	raw := t.String()
-
 	elemT := t
 	for elemT.Kind() == reflect.Pointer {
 		elemT = elemT.Elem()
 	}
-
 	if elemT.PkgPath() == "" {
 		return raw
 	}
-
 	full := elemT.PkgPath() + "." + elemT.Name()
-
 	idx := len(raw) - len(elemT.Name())
 	return raw[:idx] + full
 }
@@ -200,6 +218,7 @@ func panicf(format string, args ...any) {
 	stack := debug.Stack()
 	panic(fmt.Sprintf("%s\n\n%s", msg, stack))
 }
+
 func errorf(format string, args ...any) error {
 	baseErr := fmt.Errorf(format, args...)
 	pc, file, line, ok := runtime.Caller(2)
@@ -208,4 +227,18 @@ func errorf(format string, args ...any) error {
 	}
 	funcName := runtime.FuncForPC(pc).Name()
 	return fmt.Errorf("%w\n    at %s:%d in %s", baseErr, file, line, funcName)
+}
+
+func buildPathString(types []reflect.Type) string {
+	if len(types) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	for i, t := range types {
+		if i > 0 {
+			b.WriteString(" -> ")
+		}
+		b.WriteString(typeFullName(t))
+	}
+	return b.String()
 }
