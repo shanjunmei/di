@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"runtime"
+	"runtime/debug"
 	"sync"
 )
 
@@ -26,15 +28,15 @@ func newContainer() *container {
 func (c *container) Provide(constructor any) {
 	ctorType := reflect.TypeOf(constructor)
 	if ctorType.Kind() != reflect.Func {
-		panic(fmt.Errorf("di: constructor must be a function, got %s", typeFullName(ctorType)))
+		panicf("di: constructor must be a function, got %s", typeFullName(ctorType))
 	}
 	numOut := ctorType.NumOut()
 	if numOut != 1 && numOut != 2 {
-		panic(fmt.Errorf("di: constructor must return 1 or 2 values, got %d", numOut))
+		panicf("di: constructor must return 1 or 2 values, got %d", numOut)
 	}
 	if numOut == 2 {
 		if !ctorType.Out(1).Implements(reflect.TypeFor[error]()) {
-			panic(fmt.Errorf("di: second return value must be error, got %v", typeFullName(ctorType.Out(1))))
+			panicf("di: second return value must be error, got %v", typeFullName(ctorType.Out(1)))
 		}
 	}
 	returnType := ctorType.Out(0)
@@ -42,7 +44,7 @@ func (c *container) Provide(constructor any) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if _, ok := c.providers[returnType]; ok {
-		panic(fmt.Errorf("di: already registered for type %v", typeFullName(returnType)))
+		panicf("di: already registered for type %v", typeFullName(returnType))
 	}
 	c.providers[returnType] = reflect.ValueOf(constructor)
 }
@@ -51,7 +53,7 @@ func (c *container) Provide(constructor any) {
 func (c *container) Invoke(fn any) {
 	fnType := reflect.TypeOf(fn)
 	if fnType.Kind() != reflect.Func {
-		panic(fmt.Errorf("di: Invoke requires a function, got %s", typeFullName(fnType)))
+		panicf("di: Invoke requires a function, got %s", typeFullName(fnType))
 	}
 	wrapper := func() error {
 		fnVal := reflect.ValueOf(fn)
@@ -61,7 +63,7 @@ func (c *container) Invoke(fn any) {
 			argType := fnType.In(i)
 			argVal, err := c.resolve(argType, map[reflect.Type]bool{})
 			if err != nil {
-				return fmt.Errorf("di: cannot resolve argument %d (%v): %w", i, typeFullName(argType), err)
+				return errorf("di: cannot resolve argument %d (%v): %w", i, typeFullName(argType), err)
 			}
 			args[i] = argVal
 		}
@@ -83,7 +85,7 @@ func (c *container) Invoke(fn any) {
 // resolve 递归解析类型，支持 (T, error) 构造函数
 func (c *container) resolve(t reflect.Type, visiting map[reflect.Type]bool) (reflect.Value, error) {
 	if visiting[t] {
-		return reflect.Value{}, fmt.Errorf("di: circular dependency on %v", typeFullName(t))
+		return reflect.Value{}, errorf("di: circular dependency on %v", typeFullName(t))
 	}
 	visiting[t] = true
 	defer delete(visiting, t)
@@ -99,7 +101,7 @@ func (c *container) resolve(t reflect.Type, visiting map[reflect.Type]bool) (ref
 	ctor, ok := c.providers[t]
 	c.mu.RUnlock()
 	if !ok {
-		return reflect.Value{}, fmt.Errorf("di: no provider for type %v", typeFullName(t))
+		return reflect.Value{}, errorf("di: no provider for type %v", typeFullName(t))
 	}
 
 	ctorType := ctor.Type()
@@ -125,11 +127,11 @@ func (c *container) resolve(t reflect.Type, visiting map[reflect.Type]bool) (ref
 			if e.Type().Implements(reflect.TypeFor[error]()) {
 				err = e.Interface().(error)
 			} else {
-				err = fmt.Errorf("di: second return value is not error")
+				err = errorf("di: second return value is not error")
 			}
 		}
 	} else {
-		return reflect.Value{}, fmt.Errorf("di: constructor returned %d values, expected 1 or 2", len(results))
+		return reflect.Value{}, errorf("di: constructor returned %d values, expected 1 or 2", len(results))
 	}
 	if err != nil {
 		return reflect.Value{}, err
@@ -150,7 +152,7 @@ func (c *container) Run(ctx context.Context) error {
 		default:
 		}
 		if err := fn(); err != nil {
-			return fmt.Errorf("di: invoke task %d failed: %w", i, err)
+			return errorf("di: invoke task %d failed: %w", i, err)
 		}
 	}
 	return nil
@@ -176,4 +178,19 @@ func typeFullName(t reflect.Type) string {
 
 	idx := len(raw) - len(elemT.Name())
 	return raw[:idx] + full
+}
+
+func panicf(format string, args ...any) {
+	msg := fmt.Sprintf(format, args...)
+	stack := debug.Stack()
+	panic(fmt.Sprintf("%s\n\n%s", msg, stack))
+}
+func errorf(format string, args ...any) error {
+	baseErr := fmt.Errorf(format, args...)
+	pc, file, line, ok := runtime.Caller(2)
+	if !ok {
+		return baseErr
+	}
+	funcName := runtime.FuncForPC(pc).Name()
+	return fmt.Errorf("%w\n    at %s:%d in %s", baseErr, file, line, funcName)
 }
